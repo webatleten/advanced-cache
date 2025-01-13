@@ -3,11 +3,11 @@
  * Webathletes
  *
  * @package      	  WA
- * @author        	  Webathletes
+ * @author        	  Webatleten
  * Description:       Simple WordPress page caching
- * Version:           1.0
- * Author:            Webathletes
- * Author URI:        https://webathletes.eu/
+ * Version:           1.1
+ * Author:            Webatleten
+ * Author URI:        https://Webatleten.nl/
 */
 
 // check if cache is enabled
@@ -22,8 +22,19 @@ if( empty( $_SERVER[ 'SERVER_NAME' ] ) || empty( $_SERVER[ 'REQUEST_URI' ] ) ) {
     $wa_cache = false;
 }
 
+$session = array();
+
+if( !empty( $_SESSION ) ) {
+    $session = $_SESSION;
+}
+
+//easyflex session fix
+if( isset( $session[ 'easyflex' ] ) && !$session[ 'easyflex' ] ) {
+    unset( $session[ 'easyflex' ] );
+}
+
 // check if the user is doing something
-if( is_admin() || wp_doing_ajax() || !empty( $_SESSION ) || !empty( $_POST ) || !empty( $_FILES ) ) {
+if( is_admin() || wp_doing_ajax() || !empty( $session ) || !empty( $_POST ) || !empty( $_FILES ) ) {
     $wa_cache = false;
 }
 
@@ -32,7 +43,7 @@ if( $wa_cache && !empty( $_COOKIE ) ) {
     $regex = '/wordpress_logged_in|woocommerce_session|comment_author|wp-postpass/';
 
     foreach( $_COOKIE as $name => $val ) {
-        if( preg_match( $regex, $name ) ) {
+	    if( preg_match( $regex, $name ) ) {
             $wa_cache = false;
             break;
         }
@@ -49,83 +60,11 @@ if ( $wa_cache && !empty( $_GET ) ) {
     }
 }
 
-// check request for file types
-if( $wa_cache && $_SERVER[ 'REQUEST_URI' ] != '/' ) {
-
-    $wa_cache_ignore_exts = array(
-        //Codes
-        '.html',
-        '.json',
-        '.css',
-        '.php', 
-        'wp-json',
-
-        // AFbeeldingen
-        '.jpg',
-        '.jpeg',
-        '.png',
-        '.gif',
-        '.bmp',
-        '.tiff',
-        '.ico',
-        '.webp',
-    
-        // Documenten
-        '.pdf',
-        '.doc',
-        '.docx',
-        '.xls',
-        '.xlsx',
-        '.ppt',
-        '.pptx',
-        '.odt',
-        '.ods',
-        '.odp',
-        '.txt',
-        '.rtf',
-    
-        // Audio
-        '.mp3',
-        '.m4a',
-        '.ogg',
-        '.wav',
-        '.wma',
-    
-        // Video
-        '.mp4',
-        '.m4v',
-        '.mov',
-        '.wmv',
-        '.avi',
-        '.mpg',
-        '.ogv',
-        '.3gp',
-        '.3g2',
-    
-        // Andere Bestandsformaten
-        '.zip',
-        '.rar',
-        '.7z',
-        '.gz',
-        '.tar',
-        '.svg',
-        '.eot',
-        '.woff',
-        '.woff2',
-        '.ttf'
-    );
-
-    $regex = '';
-    foreach( $wa_cache_ignore_exts as $ext ) {
-        $regex .= str_replace( ['.', '-'], ['\.', '\-'], $ext ).'|';
-    }
-
-    $regex = '/'.rtrim( $regex, '|' ).'/';
-
-    if( preg_match( $regex, $_SERVER[ 'REQUEST_URI' ] ) ) {
-        $wa_cache = false;
-    }
+// check request for a file
+if( $wa_cache && $_SERVER[ 'REQUEST_URI' ] != '/' && preg_match( '|\.|', $_SERVER[ 'REQUEST_URI' ] ) ) {
+    $wa_cache = false;
 }
+
 
 // check if cache is a 'go'
 if( !$wa_cache ) {
@@ -133,6 +72,8 @@ if( !$wa_cache ) {
 }
 
 // create cache dir if not exists
+global $wa_cache_dir;
+
 $wa_cache_dir = ABSPATH.'wp-content/cache/html/';
 
 if( !file_exists( $wa_cache_dir ) ) {
@@ -152,8 +93,11 @@ global $wa_cache_file;
 $wa_cache_file = $wa_cache_dir.md5( $_SERVER[ 'SERVER_NAME' ].$_SERVER[ 'REQUEST_URI' ] ).'.html';
 
 // get cache settings
+global $wa_cache_settings;
+
 $wa_cache_settings = (object) array(
-    'timeout'  => 43200 //12 hours
+    'timeout'  => 43200, //12 hours
+    'minify'   => 1 //minify html
 );
 
 if( file_exists( ABSPATH.'wp-content/settings/wa/optimize.json' ) ) {
@@ -161,6 +105,10 @@ if( file_exists( ABSPATH.'wp-content/settings/wa/optimize.json' ) ) {
 
     if( !empty( $wa_cache_saved_settings->timeout ) && $wa_cache_saved_settings->timeout === 'true' ) {
         $wa_cache_settings->timeout = 0;
+    }
+
+    if( !empty( $wa_cache_saved_settings->minify ) && $wa_cache_saved_settings->minify === 'false' ) {
+        $wa_cache_settings->minify = 0;
     }
 }
 
@@ -184,7 +132,18 @@ ob_start();
 // save cache file (after some checks)
 function wa_cache_save()
 {
-    if( is_404() || !empty( $_SESSION ) ) {
+	$session = array();
+
+    if( !empty( $_SESSION ) ) {
+        $session = $_SESSION;
+    }
+
+    //easyflex session fix
+    if( isset( $session[ 'easyflex' ] ) && !$session[ 'easyflex' ] ) {
+        unset( $session[ 'easyflex' ] );
+    }
+
+    if( is_404() || !empty( $session ) ) {
         return;
     }
 
@@ -196,19 +155,37 @@ function wa_cache_save()
     else if( $wa_cache_done ) {
         return;
     }
-    
+
     if( $cache_data = ob_get_clean() ) {
-	    global $wa_cache_file;
+	    global $wa_cache_file, $wa_cache_settings;
+
+        if( $wa_cache_settings->minify ) {
+            // Verwijder HTML opmerkingen (behalve IE voorwaarden)
+            $cache_data = preg_replace('/<!--(?!\[if.*?\]).*?-->/', '', $cache_data);
+
+            // Verwijder overtollige witruimtes tussen HTML tags
+            $cache_data = preg_replace('/>\s+</', '><', $cache_data);
+
+            // Verwijder tabs, nieuwe regels, en overtollige spaties
+            $cache_data = preg_replace('/\s{2,}/', ' ', $cache_data); 
+            
+            // Meerdere spaties vervangen door één spatie
+            //$cache_data = str_replace(["\n", "\r", "\t"], '', $cache_data); 
+            
+            // Nieuwe regels, tabs verwijderen
+            $cache_data = trim ($cache_data );
+        }
 
         if( !empty( $wa_cache_file ) && preg_match( '/html|head|body/', $cache_data ) ) {
             $cache_data = str_replace( '"width=device-width, user-scalable=no, minimum-scale=1, maximum-scale=1, initial-scale=1.0"', '"width=device-width, initial-scale=1.0"', $cache_data );
 
             file_put_contents( $wa_cache_file, $cache_data );
-        }
+            chmod( $wa_cache_file, 0777 );
 
-        echo $cache_data;
+            $wa_cache_done = true;
+	}
 
-        $wa_cache_done = true;
+	echo $cache_data;
     }
 }
 
