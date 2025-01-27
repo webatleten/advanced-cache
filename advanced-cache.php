@@ -1,11 +1,11 @@
 <?php
 /**
- * Webathletes
+ * Webatleten
  *
  * @package      	  WA
  * @author        	  Webatleten
  * Description:       One file to cache all of WordPress
- * Version:           1.1
+ * Version:           1.2.0
  * Author:            Webatleten
  * Author URI:        https://webatleten.nl/
 */
@@ -53,7 +53,6 @@ if( $wa_cache && !empty( $_COOKIE ) ) {
 
 // check request uri
 if ( $wa_cache && !empty( $_GET ) ) {
-
     $regex = '/^(?!(fbclid|ref|mc_(cid|eid)|utm_(source|medium|campaign|term|content|expid)|gclid|fb_(action_ids|action_types|source)|age-verified|usqp|cn-reloaded|_ga|_ke)).+$/';
 
     if( preg_match( $regex, parse_url( $_SERVER['REQUEST_URI'], PHP_URL_QUERY ) ) ) {
@@ -100,7 +99,10 @@ $wa_cache_file = $wa_cache_dir.md5( $_SERVER[ 'SERVER_NAME' ].$_SERVER[ 'REQUEST
 $wa_cache_timeout = 43200;  //default 12 hours
 
 // get custom timemout
-if( file_exists( ABSPATH.'wp-content/settings/wa/timeout.txt' ) ) {
+if( defined( 'WA_CACHE_TIMEOUT'  ) ) {
+    $wa_cache_timeout = (float) WA_CACHE_TIMEOUT;
+}
+else if( file_exists( ABSPATH.'wp-content/settings/wa/timeout.txt' ) ) {
     $wa_cache_timeout = (float) file_get_contents( ABSPATH.'wp-content/settings/wa/timeout.txt' );
 }
 
