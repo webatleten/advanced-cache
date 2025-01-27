@@ -15,8 +15,11 @@ Jeroen Kloppenburg
 
 
 Version log
-1.0
-- Initial setup
+1.0.0
+- initial setup
 
-1.1 
+1.1.0
 - timeout fix and reduce code
+
+1.2.0
+- added define check for cache timeout
