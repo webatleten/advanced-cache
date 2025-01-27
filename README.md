@@ -12,3 +12,11 @@ Enjoy!
 Greetz,
 
 Jeroen Kloppenburg
+
+
+Version log
+1.0
+- Initial setup
+
+1.1 
+- timeout fix and reduce code
