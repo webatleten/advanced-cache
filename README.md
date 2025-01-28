@@ -19,3 +19,6 @@ Changelog
 
 1.2.0
 - added define check for cache timeout
+
+1.2.1
+- autoclear cache on WordPress actions like save_post etc.
