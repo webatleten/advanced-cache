@@ -196,6 +196,7 @@ function wa_ac_cache_save()
         //check if result if cache file is available and there are basic HTML tags
         if( !empty( WA_AC_CACHE_FILE ) && preg_match( '/html|head|body/', $cache_data ) ) {
             file_put_contents( WA_AC_CACHE_FILE, $cache_data );
+	     chmod( WA_AC_CACHE_FILE, 0755 );
 
             $wa_ac_cache_done = true;
 	    }
