@@ -22,3 +22,6 @@ Changelog
 
 1.2.1
 - autoclear cache on WordPress actions like save_post etc.
+
+1.2.2
+- removed chmod 777 on files
