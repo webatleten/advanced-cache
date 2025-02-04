@@ -5,7 +5,7 @@
  * @package      	  WA
  * @author        	  Webatleten
  * Description:       One file to cache all of WordPress
- * Version:           1.2.1
+ * Version:           1.2.2
  * Author:            Webatleten
  * Author URI:        https://webatleten.nl/
 */
