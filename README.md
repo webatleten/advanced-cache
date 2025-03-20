@@ -25,3 +25,6 @@ Changelog
 
 1.2.2
 - removed chmod 777 on files
+
+1.2.3
+- Better way of capture the HTML for caching.
