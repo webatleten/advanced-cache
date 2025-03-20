@@ -5,7 +5,7 @@
  * @package      	  WA
  * @author        	  Webatleten
  * Description:       One file to cache all of WordPress
- * Version:           1.2.2
+ * Version:           1.2.3
  * Author:            Webatleten
  * Author URI:        https://webatleten.nl/
 */
@@ -14,6 +14,17 @@
 if( !defined( 'WP_CACHE' ) || !WP_CACHE ) {
     return;
 }
+
+if (defined('WP_INSTALLING') || defined('RELOCATE')) {
+    return;
+} 
+elseif (defined('XMLRPC_REQUEST') && XMLRPC_REQUEST) {
+    return;
+} 
+elseif (defined('REST_REQUEST') && REST_REQUEST) {
+    return;
+}
+
 
 // define and create cache dir
 if( !defined( 'WA_AC_CACHE_DIR'  ) ) {
@@ -103,6 +114,20 @@ if ( $wa_ac_cache && !empty( $_GET ) ) {
     }
 }
 
+if( $wa_ac_cache && preg_match('/\/(?:wp\-[^\/]+|xmlrpc)\.php(?:[?]|$)/ui', $_SERVER['REQUEST_URI'] )) {
+    $wa_ac_cache = false;
+}
+if( $wa_ac_cache &&  is_admin() || preg_match('/\/wp-admin(?:[\/?]|$)/ui', $_SERVER['REQUEST_URI']) ) {
+    $wa_ac_cache = false;
+}
+if( $wa_ac_cache && is_multisite() && preg_match('/\/files(?:[\/?]|$)/ui', $_SERVER['REQUEST_URI']) ) {
+    $wa_ac_cache = false;
+}
+if( $wa_ac_cache &&  !empty($_REQUEST['preview'] ) ) {
+    $wa_ac_cache = false;
+}
+
+
 // check request for a file request
 if( $wa_ac_cache && $_SERVER[ 'REQUEST_URI' ] != '/' && preg_match( '|\.|', $_SERVER[ 'REQUEST_URI' ] ) ) {
     $wa_ac_cache = false;
@@ -149,18 +174,28 @@ if( $wa_ac_cache_timeout > 0 && file_exists( WA_AC_CACHE_FILE ) && ( time() - fi
 // load cache file
 if( file_exists( WA_AC_CACHE_FILE ) ) {
 	if( $contents = file_get_contents( WA_AC_CACHE_FILE ) ) {
+
         // check if cache file has all basic HTML elements
-		if( preg_match( '/html|head|body/', $contents ) ) {
-			echo $contents; exit;
+		if( mb_stripos($contents, '<body id="error-page">') === false && preg_match( '/html|head|body/', $contents ) ) {
+            header_remove('Last-Modified');
+            header('Expires: Wed, 11 Jan 1984 05:00:00 GMT');
+            header('Cache-Control: no-cache, must-revalidate, max-age=0, no-store, private');
+            //header('Pragma: no-cache');
+            header('Content-Type: text/html; charset=UTF-8');
+            header('Link: ; rel=shortlink');
+
+            //echo '<pre>'; var_dump( headers_list() ); exit;
+
+            exit( $contents );
 		}
 	}
 }
 
 // capture output
-ob_start();
+ob_start( 'wa_ac_cache_save' );
 
 // save cache file (after some checks)
-function wa_ac_cache_save()
+function wa_ac_cache_save( $cache_data = false, $phase = false )
 {
     // recheck session
 	$session = array();
@@ -175,8 +210,14 @@ function wa_ac_cache_save()
     }
 
     //if session is not empty or its a 404 page, don't cache
-    if( is_404() || !empty( $session ) ) {
-        return;
+    if( !empty( $session ) ) {
+        return $cache_data;
+    }
+
+    if( class_exists( 'WP' ) ) {
+        if ( is_admin() || is_feed() || is_trackback() || is_robots() || is_preview() || post_password_required() || is_404() ) {
+            return $cache_data;
+        }
     }
 
     global $wa_ac_cache_done;
@@ -186,25 +227,30 @@ function wa_ac_cache_save()
     }
     // stop if the page is already cached
     else if( $wa_ac_cache_done ) {
-        return;
+        return $cache_data;
     }
 
-    if( $cache_data = ob_get_clean() ) {
+    //if( !$cache_data ) {
+        //if( $custom_cache_data = ob_get_clean() ) {
+            //$cache_data = $custom_cache_data;
+        //}
+    //}
+
+    if( $cache_data ) {
         // do stuff with the cache_data
         $cache_data = apply_filters( 'wa_ac_cache_data', $cache_data );
 
         //check if result if cache file is available and there are basic HTML tags
         if( !empty( WA_AC_CACHE_FILE ) && preg_match( '/html|head|body/', $cache_data ) ) {
             file_put_contents( WA_AC_CACHE_FILE, $cache_data );
-	     chmod( WA_AC_CACHE_FILE, 0755 );
+
+            if( file_exists( WA_AC_CACHE_FILE ) ) {
+                chmod( WA_AC_CACHE_FILE, 0775 );
+            }
 
             $wa_ac_cache_done = true;
 	    }
-
-	    echo $cache_data;
     }
-}
 
-// hook on shutdown and footer
-add_action( 'wp_footer', 'wa_ac_cache_save', 999999999 );
-add_action( 'shutdown', 'wa_ac_cache_save', 999999999 );
+    return $cache_data;
+}
